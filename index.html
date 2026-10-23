@@ -1,0 +1,395 @@
+```html
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>NFC Audio Experience | Kangna Tera Ni</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    
+    /* Subtle spinning vinyl keyframe */
+    @keyframes spinVinyl {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .spin-active {
+      animation: spinVinyl 14s linear infinite;
+    }
+    .spin-paused {
+      animation-play-state: paused;
+    }
+
+    /* Ambient pulse glow */
+    @keyframes ambientGlow {
+      0%, 100% { opacity: 0.35; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.08); }
+    }
+    .ambient-pulse {
+      animation: ambientGlow 8s ease-in-out infinite alternate;
+    }
+
+    /* Slider track styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+      cursor: pointer;
+      margin-top: -5px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="h-full w-full overflow-hidden flex flex-col justify-between items-center relative select-none">
+
+  <!-- Ambient Backdrop Glows -->
+  <div class="absolute inset-0 pointer-events-none overflow-hidden z-0">
+    <div id="ambientBlob1" class="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-cyan-600/30 blur-[90px] ambient-pulse"></div>
+    <div id="ambientBlob2" class="absolute -bottom-28 -right-20 w-88 h-88 rounded-full bg-purple-600/30 blur-[100px] ambient-pulse" style="animation-delay: -3s;"></div>
+  </div>
+
+  <!-- Audio Element -->
+  <audio id="audioTrack" preload="auto" crossorigin="anonymous">
+    <source src="https://www.dropbox.com/scl/fi/p6fhz17fqddtarpb1lb1e/Kangna-Tera-Ni-Lyrics-Abeer-Arora-7Alfaaz-Most-Viral-Song.mp3?rlkey=mkkeiyy88s4f8yzzuod2lwqsu&st=zntx8kxo&raw=1" type="audio/mpeg">
+    Your browser does not support audio playback.
+  </audio>
+
+  <!-- Autoplay Fallback Tap-to-Play Overlay (Appears only when browser blocks instant playback) -->
+  <div id="gestureOverlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl transition-all duration-500 opacity-0 pointer-events-none cursor-pointer">
+    <div class="relative flex items-center justify-center mb-8">
+      <!-- Expanding ripple wave circles -->
+      <div class="absolute w-44 h-44 rounded-full border border-sky-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
+      <div class="absolute w-36 h-36 rounded-full border border-purple-500/30 animate-pulse"></div>
+      
+      <!-- Central NFC Touch Target Icon -->
+      <div class="w-24 h-24 rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/40 border border-white/20 active:scale-95 transition-transform">
+        <svg class="w-12 h-12 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l11.01-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="text-center">
+      <span class="inline-block px-3 py-1 mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 rounded-full">
+        NFC Tag Linked
+      </span>
+      <h2 class="text-2xl font-bold text-white tracking-tight">Tap Anywhere to Play</h2>
+      <p class="text-sm text-slate-400 mt-1 max-w-xs mx-auto">Instant playback unlocked for iOS & Android browsers</p>
+    </div>
+  </div>
+
+  <!-- Header Bar -->
+  <header class="w-full max-w-md px-6 pt-6 pb-2 z-10 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="relative flex h-2.5 w-2.5">
+        <span id="liveStatusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+        <span id="liveStatusDot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+      </span>
+      <span class="text-xs font-semibold tracking-widest uppercase text-slate-400">NFC Direct Audio</span>
+    </div>
+    
+    <div class="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-[11px] font-medium text-slate-300 flex items-center space-x-1.5">
+      <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      <span>Instant Stream</span>
+    </div>
+  </header>
+
+  <!-- Center Player Showcase (Vinyl & Album Art) -->
+  <main class="w-full max-w-md px-6 py-4 flex-1 flex flex-col justify-center items-center z-10">
+    <div class="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center my-auto">
+      
+      <!-- Outer Vinyl Edge Ring -->
+      <div id="vinylDisc" class="absolute inset-0 rounded-full bg-gradient-to-tr from-slate-900 via-neutral-900 to-slate-950 border-4 border-slate-800 shadow-2xl shadow-cyan-950/50 flex items-center justify-center spin-active spin-paused">
+        <!-- Vinyl Micro-grooves simulation -->
+        <div class="absolute inset-3 rounded-full border border-white/[0.04]"></div>
+        <div class="absolute inset-7 rounded-full border border-white/[0.03]"></div>
+        <div class="absolute inset-11 rounded-full border border-white/[0.04]"></div>
+        <div class="absolute inset-16 rounded-full border border-white/[0.03]"></div>
+
+        <!-- Center Label Artwork -->
+        <div class="w-32 h-32 rounded-full overflow-hidden relative shadow-inner border-2 border-white/10 flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900">
+          <div class="absolute inset-0 bg-cover bg-center opacity-85" style="background-image: url('https://placehold.co/400x400/1e1b4b/38bdf8?text=%E2%99%AC+Kangna');"></div>
+          <!-- Spindle center hole -->
+          <div class="w-5 h-5 rounded-full bg-slate-950 border border-white/20 shadow z-10"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Song Metadata -->
+    <div class="text-center mt-6 w-full px-4">
+      <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white truncate drop-shadow-sm">
+        Kangna Tera Ni
+      </h1>
+      <p class="text-sm font-medium text-slate-400 mt-1 truncate">
+        Abeer Arora &amp; Alfaaz
+      </p>
+    </div>
+
+    <!-- Equalizer Visualizer Bars -->
+    <div class="flex items-end justify-center gap-1.5 h-7 mt-4" id="eqContainer">
+      <span class="w-1 bg-cyan-400 rounded-full h-2 transition-all duration-150"></span>
+      <span class="w-1 bg-cyan-400 rounded-full h-4 transition-all duration-150"></span>
+      <span class="w-1 bg-sky-400 rounded-full h-1 transition-all duration-150"></span>
+      <span class="w-1 bg-sky-300 rounded-full h-5 transition-all duration-150"></span>
+      <span class="w-1 bg-indigo-400 rounded-full h-3 transition-all duration-150"></span>
+      <span class="w-1 bg-purple-400 rounded-full h-6 transition-all duration-150"></span>
+      <span class="w-1 bg-cyan-400 rounded-full h-2 transition-all duration-150"></span>
+    </div>
+  </main>
+
+  <!-- Controls and Playback Bar Bottom Card -->
+  <footer class="w-full max-w-md px-6 pb-8 pt-2 z-10 flex flex-col items-center">
+    <!-- Glass card container -->
+    <div class="w-full bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-xl">
+      
+      <!-- Progress Bar & Timestamps -->
+      <div class="w-full mb-3">
+        <div id="progressWrapper" class="relative w-full h-2 bg-slate-800 rounded-full cursor-pointer overflow-hidden group">
+          <div id="progressBar" class="h-full bg-gradient-to-r from-cyan-400 to-indigo-500 rounded-full w-0 transition-all duration-100"></div>
+        </div>
+        <div class="flex justify-between items-center text-[11px] font-mono text-slate-400 mt-1.5 px-0.5">
+          <span id="currentTime">0:00</span>
+          <span id="totalDuration">--:--</span>
+        </div>
+      </div>
+
+      <!-- Main Playback Controls -->
+      <div class="flex items-center justify-between pt-1">
+        
+        <!-- Restart 10s Rewind -->
+        <button id="rewindBtn" class="p-3 text-slate-400 hover:text-white transition active:scale-90" aria-label="Rewind 10 Seconds">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+          </svg>
+        </button>
+
+        <!-- Primary Play/Pause Action Button -->
+        <button id="playPauseBtn" class="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 active:scale-95 transition-all">
+          <svg id="playIcon" class="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l11.01-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z"/>
+          </svg>
+          <svg id="pauseIcon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+
+        <!-- Forward 10s Skip -->
+        <button id="forwardBtn" class="p-3 text-slate-400 hover:text-white transition active:scale-90" aria-label="Forward 10 Seconds">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Volume Bar -->
+      <div class="flex items-center gap-2 mt-4 px-2 pt-2 border-t border-white/5">
+        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/>
+        </svg>
+        <input id="volumeSlider" type="range" min="0" max="1" step="0.05" value="1" class="w-full" aria-label="Audio Volume">
+      </div>
+
+    </div>
+  </footer>
+
+  <script>
+    const audio = document.getElementById('audioTrack');
+    const gestureOverlay = document.getElementById('gestureOverlay');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const vinylDisc = document.getElementById('vinylDisc');
+    const progressBar = document.getElementById('progressBar');
+    const progressWrapper = document.getElementById('progressWrapper');
+    const currentTimeEl = document.getElementById('currentTime');
+    const totalDurationEl = document.getElementById('totalDuration');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const rewindBtn = document.getElementById('rewindBtn');
+    const forwardBtn = document.getElementById('forwardBtn');
+    const eqBars = document.querySelectorAll('#eqContainer span');
+    let eqInterval = null;
+
+    // Helper: format seconds to M:SS
+    function formatTime(seconds) {
+      if (isNaN(seconds) || seconds < 0) return '0:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // Dynamic fake visualizer pulsing when audio plays
+    function startVisualizer() {
+      if (eqInterval) clearInterval(eqInterval);
+      eqInterval = setInterval(() => {
+        eqBars.forEach(bar => {
+          const randHeight = Math.floor(Math.random() * 22) + 4;
+          bar.style.height = `${randHeight}px`;
+        });
+      }, 140);
+    }
+
+    function stopVisualizer() {
+      if (eqInterval) clearInterval(eqInterval);
+      eqBars.forEach(bar => {
+        bar.style.height = '4px';
+      });
+    }
+
+    // Synchronize UI elements with playback state
+    function updatePlaybackUI(isPlaying) {
+      if (isPlaying) {
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
+        vinylDisc.classList.remove('spin-paused');
+        startVisualizer();
+      } else {
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
+        vinylDisc.classList.add('spin-paused');
+        stopVisualizer();
+      }
+    }
+
+    // Execute playback safely
+    async function playAudio() {
+      try {
+        await audio.play();
+        updatePlaybackUI(true);
+        // Hide fallback overlay smoothly if visible
+        gestureOverlay.classList.add('opacity-0');
+        gestureOverlay.classList.remove('pointer-events-auto');
+        gestureOverlay.classList.add('pointer-events-none');
+      } catch (err) {
+        // Autoplay policy prevented playback, activate fallback overlay
+        showOverlay();
+      }
+    }
+
+    function pauseAudio() {
+      audio.pause();
+      updatePlaybackUI(false);
+    }
+
+    function togglePlay() {
+      if (audio.paused) {
+        playAudio();
+      } else {
+        pauseAudio();
+      }
+    }
+
+    // Show full-screen tap-to-play overlay when browser rejects zero-interaction autoplay
+    function showOverlay() {
+      gestureOverlay.classList.remove('pointer-events-none');
+      gestureOverlay.classList.add('pointer-events-auto');
+      gestureOverlay.classList.remove('opacity-0');
+    }
+
+    // --- Event Listeners ---
+    
+    // Play/Pause button
+    playPauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePlay();
+    });
+
+    // Tap overlay to dismiss and play
+    gestureOverlay.addEventListener('click', () => {
+      playAudio();
+    });
+
+    // Time update for progress track
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        progressBar.style.width = `${pct}%`;
+        currentTimeEl.textContent = formatTime(audio.currentTime);
+      }
+    });
+
+    // Metadata loaded
+    audio.addEventListener('loadedmetadata', () => {
+      totalDurationEl.textContent = formatTime(audio.duration);
+    });
+
+    // Scrub progress
+    progressWrapper.addEventListener('click', (e) => {
+      const rect = progressWrapper.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const width = rect.width;
+      if (audio.duration) {
+        audio.currentTime = (clickX / width) * audio.duration;
+      }
+    });
+
+    // Skip controls
+    rewindBtn.addEventListener('click', () => {
+      audio.currentTime = Math.max(0, audio.currentTime - 10);
+    });
+
+    forwardBtn.addEventListener('click', () => {
+      if (audio.duration) {
+        audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+      }
+    });
+
+    // Volume Slider
+    volumeSlider.addEventListener('input', (e) => {
+      audio.volume = parseFloat(e.target.value);
+    });
+
+    // Reset UI when track ends
+    audio.addEventListener('ended', () => {
+      updatePlaybackUI(false);
+      progressBar.style.width = '0%';
+      currentTimeEl.textContent = '0:00';
+    });
+
+    // Immediate Autoplay Attempt upon page load
+    window.addEventListener('load', () => {
+      // Small timeout to allow browser DOM to mount completely
+      setTimeout(() => {
+        const promise = audio.play();
+        if (promise !== undefined) {
+          promise
+            .then(() => {
+              updatePlaybackUI(true);
+            })
+            .catch(() => {
+              // Blocked by modern browser security policy -> display overlay
+              showOverlay();
+            });
+        }
+      }, 150);
+    });
+  </script>
+</body>
+</html>
+```
